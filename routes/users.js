@@ -2,9 +2,6 @@ const express = require("express");
 const router = express.Router();
 const conn = require("../util/mariadb");
 const { check, body, param, validationResult } = require("express-validator");
-const jwt = require("jsonwebtoken");
-const jwt = require("./utils/jwt-util");
-const redisClient = require("./utils/redis");
 const authController = require("../controllers/users");
 
 //validate에 오는 req, res, next express 가 넣어주는거
@@ -13,7 +10,10 @@ const validate = (req, res, next) => {
   if (err.isEmpty()) {
     return next();
   } else {
-    return res.status(400).json(err.array());
+    const error = new Error("Validation failed, entered data is incorrect");
+    error.statusCode = 422;
+    error.data = err.array();
+    return next(error);
   }
 };
 
@@ -46,6 +46,11 @@ router.post(
         });
       })
       .normalizeEmail(), //대문자제거 ,이메일 형식 표준화
+    body("name")
+      .notEmpty()
+      .isLength({ min: 5 })
+      .trim()
+      .withMessage("유저이름 확인 필요"),
     body("password")
       .notEmpty()
       .isLength({ min: 5 })
@@ -82,4 +87,6 @@ router.post("/reset", [], authController.resetreq);
 //비밀번호 초기화
 router.put("/reset", [], authController.resetpwd);
 
+//refresh 요청
+router.get("/refresh", authController.refresh);
 module.exports = router;
