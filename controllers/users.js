@@ -34,6 +34,11 @@ exports.signup = async (req, res, next) => {
     // const results = await query(sql, values);
     const results = await queryAsync(sql, values);
 
+    if (results.affectedRows == 0) {
+      const error = new Error("회원가입이 실패했습니다.");
+      error.statusCode = StatusCodes.BAD_REQUEST;
+      return next(error);
+    }
     res.status(StatusCodes.CREATED).json({
       message: "회원가입이 성공적으로 완료되었습니다.",
       userId: results.insertId, // 생성된 사용자의 ID를 반환
@@ -124,7 +129,7 @@ exports.pwdReset = async (req, res, next) => {
     const results = await queryAsync(sql, values);
     // console.log(results);
     if (results.affectedRows == 0) {
-      const error = new Error("해당 이메일을 가진 사람이 없습니다.");
+      const error = new Error("비밀번호 변경에 실패했습니다.");
       error.statusCode = StatusCodes.BAD_REQUEST;
       return next(error);
     }
