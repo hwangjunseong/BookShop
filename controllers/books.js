@@ -10,7 +10,9 @@ const getBooks = async (req, res, next) => {
   try {
     if (category_id) {
       //books 테이블과 category 테이블을 내부 조인 , 좋아요 수는 아직 안함
-      let sql = `SELECT books.id, books.title, books.img, books.summary, books.author, books.price, books.pub_date ,category.name FROM books JOIN category ON books.category_id = category.id where category_id = ?ORDER BY books.pub_date DESC LIMIT ? OFFSET ? `;
+      let sql = `SELECT books.id, books.title, books.img, books.summary, books.author, books.price, books.pub_date ,category.name FROM books 
+      JOIN category ON books.category_id = category.id 
+      where category_id = ?ORDER BY books.pub_date DESC LIMIT ? OFFSET ? `;
       let values = [category_id, perPage, offset];
 
       const results = await queryAsync(sql, values);
@@ -20,7 +22,6 @@ const getBooks = async (req, res, next) => {
         error.statusCode = StatusCodes.NOT_FOUND;
         return next(error);
       }
-      //   console.log(results);
 
       res.status(StatusCodes.OK).json({
         message: "카테고리별 전체 도서 조회",
@@ -29,7 +30,9 @@ const getBooks = async (req, res, next) => {
     } else {
       //MariaDB에서는 LIMIT 및 OFFSET을 사용할 때는 = 기호 없이 값을 제공해야 함
       //아니면 템플릿 리터럴 ${} 사용
-      let sql = `SELECT * FROM books ORDER BY books.pub_date DESC LIMIT ? OFFSET ?`;
+      let sql = `SELECT  books.id, books.title, books.img, books.summary, books.author, books.price, books.pub_date ,category.name FROM books 
+       JOIN category ON books.category_id = category.id
+      ORDER BY books.pub_date DESC LIMIT ? OFFSET ?`;
       let values = [perPage, offset];
 
       const results = await queryAsync(sql, values);
@@ -38,7 +41,6 @@ const getBooks = async (req, res, next) => {
         error.statusCode = StatusCodes.NOT_FOUND;
         return next(error);
       }
-      // console.log(results);
 
       res.status(StatusCodes.OK).json({
         message: "전체 도서 조회",
@@ -56,7 +58,12 @@ const getBookDetail = async (req, res, next) => {
   const { bookId } = req.params;
 
   try {
-    let sql = `SELECT * FROM books where id=? `;
+    let sql = `
+      SELECT books.*, category.name AS category_name
+      FROM books
+      JOIN category ON books.category_id = category.id
+      WHERE books.id = ?
+    `;
     let values = [bookId];
 
     const results = await queryAsync(sql, values);
@@ -65,11 +72,13 @@ const getBookDetail = async (req, res, next) => {
       error.statusCode = StatusCodes.NOT_FOUND;
       return next(error);
     }
-    // console.log(results);
+
+    delete results[0].category_id; // category_id 필드를 삭제
+    console.log(results);
 
     res.status(StatusCodes.OK).json({
       message: "개별 상세 도서 조회",
-      book: results[0], //해당 책 id에 대한 정보 반환
+      book: results[0], // category_id를 제외한 책 정보 반환
     });
   } catch (err) {
     if (!err.statusCode) {
