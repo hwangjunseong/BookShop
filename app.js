@@ -14,9 +14,8 @@ const cartRouter = require("./routes/carts");
 const orderRouter = require("./routes/orders");
 const categoryRouter = require("./routes/category");
 
-const auth = require("./middleware/auth");
 const err = require("./middleware/err");
-app.use(auth);
+
 app.use("/users", userRouter);
 app.use("/books", bookRouter);
 app.use("/likes", likesRouter);

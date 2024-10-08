@@ -1,6 +1,11 @@
 const crypto = require("crypto"); //무작위값생성해주는거
 const bcrypt = require("bcryptjs");
-const { sign, verify, refreshVerify, refresh } = require("../util/jwt-util");
+const {
+  accessSign,
+  accessVerify,
+  refreshVerify,
+  refreshSign,
+} = require("../util/jwt-util");
 const redisClient = require("../util/redis");
 const { promisify } = require("util");
 const conn = require("../util/mariadb");
@@ -75,10 +80,10 @@ exports.login = async (req, res, next) => {
       error.statusCode = StatusCodes.UNAUTHORIZED;
       return next(error);
     }
-    // access token과 refresh token을 발급합니다.
-    const accessToken = sign(loginUser);
-    const refreshToken = refresh();
-    // Redis에 refresh token 저장
+    // access token과 refresh token을 발급
+    const accessToken = accessSign(loginUser);
+    const refreshToken = refreshSign();
+    // 발급한 refresh token을 redis에 key를 user의 id로 하여 db에 저장
     redisClient.set(loginUser.id, refreshToken);
     res.cookie(
       "token",
@@ -147,70 +152,64 @@ exports.pwdReset = async (req, res, next) => {
 
 exports.refresh = async (req, res) => {
   // check access token and refresh token exist
-  if (req.headers.authorization && req.headers.refresh) {
-    const authToken = req.headers.authorization.split("Bearer ")[1];
-    const refreshToken = req.headers.refresh;
+  const authHeader = req.get("Authorization");
+  const refreshHeader = req.get("Refresh");
+  if (!authHeader || !refreshHeader) {
+    res.status(StatusCodes.BAD_REQUEST).send({
+      isAuth: false,
+      message:
+        "entered data is incorrect, please enter an Access token and refresh token!",
+    });
+  }
 
-    // access token verify
-    const authResult = verify(authToken);
+  //case 3가지
+  //access token이 만료되고, refresh token도 만료 된 경우 => 새로 로그인
+  //access token이 만료되고, refresh token은 만료되지 않은 경우 => 새로운 access token을 발급
+  //access token이 만료되지 않은경우 => refresh 안함
 
-    // access token decoding
-    const decoded = jwt.decode(authToken);
+  const authToken = authHeader.split("Bearer ")[1];
+  const refreshToken = refreshHeader;
 
-    if (decoded === null) {
-      res.status(401).send({
-        ok: false,
+  // access token verify => expired 확인
+  const authResult = accessVerify(authToken);
+
+  //jwt.decode함수는 verify를 하지않고, payload의 값을 가져오기 때문에 유저정보를 가져올 수 있음.
+  // access token decoding => userId
+  const decodedToken = jwt.decode(authToken);
+
+  if (!decodedToken) {
+    res.status(StatusCodes.UNAUTHORIZED).send({
+      isAuth: false,
+      message: "No authorized!",
+    });
+  }
+  //access token의 decoding 된 값에서 유저의 id를 가져와 refresh token을 검증
+  const refreshResult = await refreshVerify(refreshToken, decodedToken.userId);
+
+  if (authResult.isAuth === false && authResult.message === "jwt expired") {
+    // 1. accessToken expired && refreshToken expired => make user login
+    if (refreshResult.isAuth === false) {
+      res.status(StatusCodes.UNAUTHORIZED).send({
+        isAuth: false,
         message: "No authorized!",
       });
-    }
-
-    // refreshToken verify
-    let user = null;
-    try {
-      user = await client.users.findFirst({
-        where: {
-          id: decoded.id,
-        },
-      });
-    } catch (err) {
-      res.status(401).send({
-        ok: false,
-        message: err.message,
-      });
-    }
-
-    const refreshResult = refreshVerify(refreshToken, user.username);
-
-    if (authResult.ok === false && authResult.message === "jwt expired") {
-      // 1. accessToken expired && refreshToken expired => make user login
-      if (refreshResult.ok === false) {
-        res.status(401).send({
-          ok: false,
-          message: "No authorized!",
-        });
-      } else {
-        // 2. accessToken expired && refreshToken valid => make new accessToken
-        const newAccessToken = sign(user);
-
-        res.status(200).send({
-          ok: true,
-          data: {
-            accessToken: newAccessToken,
-            refreshToken,
-          },
-        });
-      }
     } else {
-      // 3. accessToken valid => dont have to make new token
-      res.status(400).send({
-        ok: false,
-        message: "Acess token is not expired!",
+      // 2. accessToken expired && refreshToken valid => make new accessToken
+      const newAccessToken = accessSign(user);
+
+      res.status(StatusCodes.OK).send({
+        isAuth: true,
+        data: {
+          accessToken: newAccessToken,
+          refreshToken,
+        },
       });
     }
   } else {
-    res.status(400).send({
-      ok: false,
-      message: "Access token and refresh token are need for refresh!",
+    // 3. accessToken valid => dont have to make new token
+    res.status(StatusCodes.BAD_REQUEST).send({
+      isAuth: false,
+      message: "Acess token is not expired!",
     });
   }
 };

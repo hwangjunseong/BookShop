@@ -1,50 +1,56 @@
 const { StatusCodes } = require("http-status-codes");
 const conn = require("../util/mariadb");
 
+//(카테고리 별, 신간 여부) 전체 도서 목록 조회
 const getBooks = async (req, res, next) => {
-  const currentPage = req.query.page || 1; //undefined이면 default page 1
-  const { category_id } = req.query;
+  const currentPage = +req.query.page >= 1 ? +req.query.page : 1; //int
+  const category_id = +req.query.category_id >= 0 ? +req.query.category_id : -1; //int
+  const new_book = req.query.new_book === "true" ? true : false; //boolean
+  //category_id는 0부터 시작하고 new_book은 false이거나 true임
+  // console.log(typeof currentPage, typeof category_id, typeof new_book);
+  // console.log(currentPage, category_id, new_book);
   const perPage = 8;
   const offset = (currentPage - 1) * perPage;
-
   try {
-    if (category_id) {
-      //books 테이블과 category 테이블을 내부 조인 , 좋아요 수는 아직 안함
-      let sql = `SELECT books.id, books.title, books.img, books.summary, books.author, books.price, books.pub_date ,category.name FROM books 
-      JOIN category ON books.category_id = category.id 
-      where category_id = ?ORDER BY books.pub_date DESC LIMIT ? OFFSET ? `;
-      let values = [category_id, perPage, offset];
+    let sql = `SELECT books.id, books.title, books.img, books.summary, books.author, books.price, books.pub_date ,category.category_name 
+    FROM books JOIN category ON books.category_id = category.id `;
 
-      const results = await queryAsync(sql, values);
+    const values = [];
 
-      if (results.length == 0) {
-        const error = new Error("해당 페이지에 대한 책들이 없습니다.");
-        error.statusCode = StatusCodes.NOT_FOUND;
-        return next(error);
-      }
+    if (category_id >= 0 && new_book) {
+      sql += `where category_id = ? AND pub_date BETWEEN DATE_SUB(NOW(), INTERVAL 1 MONTH) AND NOW() `;
+      values.push(category_id);
+      console.log(`0`);
+    } else if (category_id >= 0 && !new_book) {
+      sql += `where category_id = ? `;
+      values.push(category_id);
+      console.log(`1`);
+    } else if (category_id === -1 && new_book) {
+      sql += `WHERE pub_date BETWEEN DATE_SUB(NOW(), INTERVAL 1 MONTH) AND NOW() `;
+      console.log(`2`);
+    } else {
+      console.log(`3`);
+    }
+    sql += `LIMIT ? OFFSET ?`;
+    values.push(perPage, offset);
+    const results = await queryAsync(sql, values);
 
+    if (results.length === 0) {
+      const error = new Error("해당 페이지에 대한 책들이 없습니다.");
+      error.statusCode = StatusCodes.NOT_FOUND;
+      return next(error);
+    }
+    if (category_id >= 0) {
       res.status(StatusCodes.OK).json({
-        message: "카테고리별 전체 도서 조회",
-        books: results, //해당 페이지에 대한 책들 반환
+        message: new_book
+          ? "카테고리별 전체 신간 도서 조회"
+          : "카테고리별 전체 도서 조회",
+        books: results,
       });
     } else {
-      //MariaDB에서는 LIMIT 및 OFFSET을 사용할 때는 = 기호 없이 값을 제공해야 함
-      //아니면 템플릿 리터럴 ${} 사용
-      let sql = `SELECT  books.id, books.title, books.img, books.summary, books.author, books.price, books.pub_date ,category.name FROM books 
-       JOIN category ON books.category_id = category.id
-      ORDER BY books.pub_date DESC LIMIT ? OFFSET ?`;
-      let values = [perPage, offset];
-
-      const results = await queryAsync(sql, values);
-      if (results.length == 0) {
-        const error = new Error("해당 페이지에 대한 책들이 없습니다.");
-        error.statusCode = StatusCodes.NOT_FOUND;
-        return next(error);
-      }
-
       res.status(StatusCodes.OK).json({
-        message: "전체 도서 조회",
-        books: results, //해당 페이지에 대한 책들 반환
+        message: new_book ? "전체 신간 도서 조회" : "전체 도서 조회",
+        books: results,
       });
     }
   } catch (err) {
@@ -54,14 +60,15 @@ const getBooks = async (req, res, next) => {
     next(err);
   }
 };
+
 const getBookDetail = async (req, res, next) => {
   const { bookId } = req.params;
 
   try {
     let sql = `
-      SELECT books.*, category.name AS category_name
+      SELECT books.*, category.category_name 
       FROM books
-      JOIN category ON books.category_id = category.id
+      LEFT JOIN category ON books.category_id = category.id
       WHERE books.id = ?
     `;
     let values = [bookId];

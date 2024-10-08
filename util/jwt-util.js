@@ -1,47 +1,48 @@
 const { promisify } = require("util");
 const jwt = require("jsonwebtoken");
 const redisClient = require("./redis");
-const secret = process.env.PRIVATE_KEY;
+const JWT_PRIVATE_KEY = process.env.PRIVATE_KEY;
 
 module.exports = {
-  sign: (user) => {
+  accesssSign: (user) => {
     // access token 발급
     const payload = {
       // access token에 들어갈 payload
-      id: user.id,
-      // role: user.role,
+      userId: user.id,
+      email: user.email,
     };
 
-    return jwt.sign(payload, secret, {
-      // secret으로 sign하여 발급하고 return
+    return jwt.sign(payload, JWT_PRIVATE_KEY, {
+      // JWT_PRIVATE_KEYt으로 sign하여 발급하고 return
       algorithm: "HS256", // 암호화 알고리즘
       expiresIn: "1h", // 유효기간
-      issuer: "junseong", //발행한 사람
+      isUser: "junseong", //발행한 사람
     });
   },
-  verify: (token) => {
+  accessVerify: (token) => {
     // access token 검증
-    let decoded = null;
+    let decodedToken;
     try {
-      decoded = jwt.verify(token, secret);
+      decodedToken = jwt.verify(token, JWT_PRIVATE_KEY);
       return {
-        ok: true,
-        id: decoded.id,
-        role: decoded.role,
+        isAuth: true,
+        userId: decodedToken.userId,
+        email: decodedToken.email,
       };
     } catch (err) {
       return {
-        ok: false,
+        isAuth: false,
         message: err.message,
       };
     }
   },
-  refresh: () => {
+  refreshSign: () => {
     // refresh token 발급
-    return jwt.sign({}, secret, {
+    return jwt.sign({}, JWT_PRIVATE_KEY, {
       // refresh token은 payload 없이 발급
       algorithm: "HS256",
       expiresIn: "14d",
+      isUser: "junseong",
     });
   },
   refreshVerify: async (token, userId) => {
@@ -51,10 +52,10 @@ module.exports = {
     const getAsync = promisify(redisClient.get).bind(redisClient);
 
     try {
-      const data = await getAsync(userId); // refresh token 가져오기
-      if (token === data) {
+      const refreshToken = await getAsync(userId); // 서버에 저장된 refresh token 가져오기
+      if (token === refreshToken) {
         try {
-          jwt.verify(token, secret);
+          jwt.verify(token, JWT_PRIVATE_KEY);
           return true;
         } catch (err) {
           return false;

@@ -1,9 +1,9 @@
 const express = require("express");
 const router = express.Router();
 const conn = require("../util/mariadb");
-const { check, body, param, validationResult } = require("express-validator");
+const { check, body, validationResult } = require("express-validator");
 const { StatusCodes } = require("http-status-codes");
-const authController = require("../controllers/users");
+const userController = require("../controllers/users");
 
 //validate에 오는 req, res, next express 가 넣어주는거
 const validate = (req, res, next) => {
@@ -56,7 +56,7 @@ router.post(
       .withMessage("비밀번호 확인 필요"),
     validate,
   ],
-  authController.signup
+  userController.signup
 );
 //로그인
 router.post(
@@ -75,15 +75,19 @@ router.post(
       .withMessage("비밀번호 확인 필요"),
     validate,
   ],
-  authController.login
+  userController.login
 );
 
 //비밀번호 초기화 요청
-router.post("/reset", [], authController.pwdResetReq);
+router.post("/reset", [], userController.pwdResetReq);
 
 //비밀번호 초기화
-router.put("/reset", [], authController.pwdReset);
+router.put("/reset", [], userController.pwdReset);
 
-//refresh 요청
-router.get("/refresh", authController.refresh);
+//refresh 요청 => 헤더에 다음과 같이 들어옴
+// {
+//   "Authorizaiton":"Bearer access-token",
+//   "Refresh":"refresh-token"
+// }
+router.get("/refresh", userController.refresh);
 module.exports = router;
