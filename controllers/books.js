@@ -9,10 +9,12 @@ const getBooks = async (req, res, next) => {
   //category_id는 0부터 시작하고 new_book은 false이거나 true임
   // console.log(typeof currentPage, typeof category_id, typeof new_book);
   // console.log(currentPage, category_id, new_book);
-  const perPage = 8;
+  const perPage = +req.query.limit > 0 ? +req.query.limt : 1;
+
   const offset = (currentPage - 1) * perPage;
   try {
-    let sql = `SELECT books.id, books.title, books.img, books.summary, books.author, books.price, books.pub_date ,category.category_name 
+    let sql = `SELECT books.id, books.title, books.img, books.summary, books.author, books.price, books.pub_date ,category.category_name ,
+    (SELECT count(*) FROM likes WHERE liked_book_id=books.id) AS likes
     FROM books JOIN category ON books.category_id = category.id `;
 
     const values = [];
@@ -63,15 +65,18 @@ const getBooks = async (req, res, next) => {
 
 const getBookDetail = async (req, res, next) => {
   const { bookId } = req.params;
-
+  const { user_id } = req.body; //아직 jwt 안받아서 body 값으로 줌
+  const liked_book_id = bookId;
   try {
     let sql = `
-      SELECT books.*, category.category_name 
-      FROM books
-      LEFT JOIN category ON books.category_id = category.id
-      WHERE books.id = ?
+    SELECT * , 
+    (SELECT count(*) FROM likes WHERE liked_book_id=books.id) AS likes,
+    (SELECT EXISTS (SELECT * FROM likes WHERE user_id= ? AND liked_book_id=?)) AS liked 
+    FROM books 
+    LEFT JOIN category ON books.category_id = category.category_id
+    WHERE books.id = ?;
     `;
-    let values = [bookId];
+    const values = [user_id, liked_book_id, bookId];
 
     const results = await queryAsync(sql, values);
     if (results.length == 0) {
@@ -81,7 +86,7 @@ const getBookDetail = async (req, res, next) => {
     }
 
     delete results[0].category_id; // category_id 필드를 삭제
-    console.log(results);
+    // console.log(results);
 
     res.status(StatusCodes.OK).json({
       message: "개별 상세 도서 조회",

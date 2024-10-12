@@ -10,7 +10,7 @@ app.use(express.json());
 const userRouter = require("./routes/users");
 const bookRouter = require("./routes/books");
 const likesRouter = require("./routes/likes");
-const cartRouter = require("./routes/carts");
+const cartRouter = require("./routes/cart");
 const orderRouter = require("./routes/orders");
 const categoryRouter = require("./routes/category");
 
@@ -19,7 +19,7 @@ const err = require("./middleware/err");
 app.use("/users", userRouter);
 app.use("/books", bookRouter);
 app.use("/likes", likesRouter);
-app.use("/carts", cartRouter);
+app.use("/cart", cartRouter);
 app.use("/orders", orderRouter);
 app.use("/category", categoryRouter);
 
