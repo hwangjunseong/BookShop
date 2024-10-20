@@ -1,33 +1,37 @@
 const redis = require("redis");
-
-const redisClient = redis.createClient(process.env.REDIS_PORT);
-
-redisClient.on("error", (err) => {
-  console.error("Redis 클라이언트 오류:", err);
-});
-
-const set = (key, value) => {
-  redisClient.set(key, JSON.stringify(value));
+const redisUrl = "redis://127.0.0.1:6379";
+// const redisClient = redis.createClient(process.env.REDIS_PORT);
+const redisClient = redis.createClient(redisUrl);
+// Redis 연결
+redisClient
+  .connect()
+  .then(() => console.log("redis 연결 성공"))
+  .catch(console.error);
+const set = async (key, value) => {
+  if (typeof key !== "string") {
+    key = String(key); // key가 문자열이 아니면 문자열로 변환
+  }
+  try {
+    await redisClient.set(key, value);
+    // console.log(`Value set for key: ${key}`);
+  } catch (err) {
+    console.error("Error setting value in Redis:", err);
+  }
 };
 
-const get = (req, res, next) => {
-  let key = req.originalUrl;
-
-  redisClient.get(key, (error, data) => {
-    if (error) {
-      res.status(400).send({
-        ok: false,
-        message: error,
-      });
-    }
+const get = async (key) => {
+  // console.log(`getKey: ${key}`);
+  try {
+    const data = await redisClient.get(key); // 비동기 방식으로 데이터 가져오기
+    // console.log("redisgetdata", data);
     if (data !== null) {
-      console.log("data from redis!");
-      res.status(200).send({
-        ok: true,
-        data: JSON.parse(data),
-      });
-    } else next();
-  });
+      // console.log("Data from Redis cache!");
+      return data;
+    }
+  } catch (error) {
+    console.error("Error getting value from Redis:", error);
+    return null;
+  }
 };
 
 module.exports = {

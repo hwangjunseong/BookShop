@@ -42,35 +42,31 @@ exports.signup = async (req, res, next) => {
     if (results.affectedRows == 0) {
       const error = new Error("회원가입이 실패했습니다.");
       error.statusCode = StatusCodes.BAD_REQUEST;
-      return next(error);
+      throw error;
     }
     res.status(StatusCodes.CREATED).json({
       message: "회원가입이 성공적으로 완료되었습니다.",
       userId: results.insertId, // 생성된 사용자의 ID를 반환
     });
   } catch (err) {
-    if (!err.statusCode) {
-      //에러가 없다면
-      err.statusCode = StatusCodes.INTERNAL_SERVER_ERROR;
-    }
-
-    next(err);
+    handleServerError(err, next);
   }
 };
 
 exports.login = async (req, res, next) => {
   const { email, password } = req.body;
-
+  // console.log(email, password);
   //conn.query는 promise를 반환 x
   try {
     // db에 저장된 email과 pwd가 맞는지 확인
     let sql = `SELECT * FROM users Where email = ?`;
     const results = await queryAsync(sql, email);
     const loginUser = results[0];
+    // console.log("loginUser", loginUser);
     if (!loginUser) {
       const error = new Error("이메일 또는 비밀번호가 잘못되었습니다.");
       error.statusCode = StatusCodes.UNAUTHORIZED;
-      return next(error);
+      throw error;
     }
 
     // 비밀번호 비교
@@ -78,24 +74,24 @@ exports.login = async (req, res, next) => {
     if (!isPasswordValid) {
       const error = new Error("이메일 또는 비밀번호가 잘못되었습니다.");
       error.statusCode = StatusCodes.UNAUTHORIZED;
-      return next(error);
+      throw error;
     }
     // access token과 refresh token을 발급
-    const accessToken = accessSign(loginUser);
+    const accessToken = accessSign(loginUser.id);
     const refreshToken = refreshSign();
     // 발급한 refresh token을 redis에 key를 user의 id로 하여 db에 저장
-    redisClient.set(loginUser.id, refreshToken);
-    res.cookie(
-      "token",
-      { accessToken, refreshToken },
-      { httpOnly: true, secure: true, sameSite: "Strict" }
-    );
-    res.status(StatusCodes.OK).json({ message: "로그인 성공!" });
+    // console.log(loginUser, refreshToken);
+    await redisClient.set(loginUser.id, refreshToken);
+    // res.cookie(
+    //   "token",
+    //   { accessToken, refreshToken },
+    //   { httpOnly: true, secure: true, sameSite: "Strict" }
+    // );
+    res
+      .status(StatusCodes.OK)
+      .json({ token: { accessToken, refreshToken }, message: "로그인 성공!" });
   } catch (err) {
-    if (!err.statusCode) {
-      err.statusCode = StatusCodes.INTERNAL_SERVER_ERROR;
-    }
-    next(err);
+    handleServerError(err, next);
   }
 };
 
@@ -109,17 +105,14 @@ exports.pwdResetReq = async (req, res, next) => {
     if (!loginUser) {
       const error = new Error("해당 이메일을 가진 사람이 없습니다.");
       error.statusCode = StatusCodes.BAD_REQUEST;
-      return next(error);
+      throw error;
     }
     res.status(StatusCodes.OK).json({
       message: "해당 이메일을 가진 사람이 있습니다",
       email: loginUser.email, //email 반환
     });
   } catch (err) {
-    if (!err.statusCode) {
-      err.statusCode = StatusCodes.INTERNAL_SERVER_ERROR;
-    }
-    next(err);
+    handleServerError(err, next);
   }
 };
 
@@ -136,17 +129,14 @@ exports.pwdReset = async (req, res, next) => {
     if (results.affectedRows == 0) {
       const error = new Error("비밀번호 변경에 실패했습니다.");
       error.statusCode = StatusCodes.BAD_REQUEST;
-      return next(error);
+      throw error;
     }
     res.status(StatusCodes.OK).json({
       message: "비밀번호가 변경되었습니다",
-      results: results,
+      results,
     });
   } catch (err) {
-    if (!err.statusCode) {
-      err.statusCode = StatusCodes.INTERNAL_SERVER_ERROR;
-    }
-    next(err);
+    handleServerError(err, next);
   }
 };
 
@@ -154,6 +144,8 @@ exports.refresh = async (req, res) => {
   // check access token and refresh token exist
   const authHeader = req.get("Authorization");
   const refreshHeader = req.get("Refresh");
+  // console.log(`refresh token: ${refreshHeader}`);
+  // console.log(`auth header: ${authHeader}`);
   if (!authHeader || !refreshHeader) {
     res.status(StatusCodes.BAD_REQUEST).send({
       isAuth: false,
@@ -167,26 +159,31 @@ exports.refresh = async (req, res) => {
   //access token이 만료되고, refresh token은 만료되지 않은 경우 => 새로운 access token을 발급
   //access token이 만료되지 않은경우 => refresh 안함
 
-  const authToken = authHeader.split("Bearer ")[1];
+  const authToken = authHeader.split(" ")[1];
+
   const refreshToken = refreshHeader;
 
-  // access token verify => expired 확인
+  // access token verify(검증) => expired 확인
   const authResult = accessVerify(authToken);
-
+  // console.log("authResult", authResult);
   //jwt.decode함수는 verify를 하지않고, payload의 값을 가져오기 때문에 유저정보를 가져올 수 있음.
   // access token decoding => userId
   const decodedToken = jwt.decode(authToken);
-
+  // console.log("decodedToken)", decodedToken);
   if (!decodedToken) {
     res.status(StatusCodes.UNAUTHORIZED).send({
       isAuth: false,
       message: "No authorized!",
     });
   }
+
   //access token의 decoding 된 값에서 유저의 id를 가져와 refresh token을 검증
   const refreshResult = await refreshVerify(refreshToken, decodedToken.userId);
-
-  if (authResult.isAuth === false && authResult.message === "jwt expired") {
+  // console.log("refreshResult", refreshResult);
+  if (
+    authResult.isAuth === false &&
+    authResult.message === "Token has expired"
+  ) {
     // 1. accessToken expired && refreshToken expired => make user login
     if (refreshResult.isAuth === false) {
       res.status(StatusCodes.UNAUTHORIZED).send({
@@ -195,7 +192,8 @@ exports.refresh = async (req, res) => {
       });
     } else {
       // 2. accessToken expired && refreshToken valid => make new accessToken
-      const newAccessToken = accessSign(user);
+      const newAccessToken = accessSign(decodedToken.userId);
+      // console.log("newAccessToken", newAccessToken);
 
       res.status(StatusCodes.OK).send({
         isAuth: true,
@@ -223,4 +221,10 @@ const queryAsync = (sql, params) => {
       resolve(results);
     });
   });
+};
+const handleServerError = (err, next) => {
+  if (!err.statusCode) {
+    err.statusCode = StatusCodes.INTERNAL_SERVER_ERROR;
+  }
+  next(err);
 };

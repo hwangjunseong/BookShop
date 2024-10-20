@@ -8,7 +8,7 @@ exports.getCategories = async (req, res, next) => {
     if (results.length == 0) {
       const error = new Error("카테고리 테이블에 정보가 없습니다");
       error.statusCode = StatusCodes.NOT_FOUND;
-      return next(error);
+      throw error;
     }
     // console.log(results);
 
@@ -17,10 +17,7 @@ exports.getCategories = async (req, res, next) => {
       category: results,
     });
   } catch (err) {
-    if (!err.statusCode) {
-      err.statusCode = StatusCodes.INTERNAL_SERVER_ERROR;
-    }
-    next(err);
+    handleServerError(err, next);
   }
 };
 const queryAsyncNoParams = (sql) => {
@@ -32,4 +29,10 @@ const queryAsyncNoParams = (sql) => {
       resolve(results);
     });
   });
+};
+const handleServerError = (err, next) => {
+  if (!err.statusCode) {
+    err.statusCode = StatusCodes.INTERNAL_SERVER_ERROR;
+  }
+  next(err);
 };

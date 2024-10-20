@@ -9,6 +9,6 @@ router.post("/", isAuth, [], cartController.postCart);
 router.get("/", isAuth, [], cartController.getCartItems);
 
 //장바구니 도서 삭제
-router.delete("/:cartitemId", isAuth, [], cartController.removeCartItems);
+router.delete("/:cartitemid", isAuth, [], cartController.removeCartItems);
 
 module.exports = router;

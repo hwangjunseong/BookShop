@@ -2,7 +2,7 @@ const express = require("express");
 const dotenv = require("dotenv");
 dotenv.config();
 const app = express();
-const redis = require("./util/redis");
+// const redis = require("./util/redis");
 app.listen(process.env.PORT);
 // JSON 형태의 요청 body를 파싱하기 위해 express.json() 미들웨어를 사용
 app.use(express.json());
