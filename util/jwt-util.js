@@ -64,6 +64,9 @@ module.exports = {
   },
   refreshVerify: async (token, userId) => {
     // refresh token 검증
+    // redisClient.get = util.promisify(client.get);
+    //get 함수가 promise를 반환하거나 async로 정의된 함수라면 위에거를 사용할필요없음
+
     try {
       // Redis에서 userId에 해당하는 refresh token 가져오기
       const storedRefreshToken = await redisClient.get(String(userId));

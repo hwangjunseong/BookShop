@@ -11,6 +11,9 @@ redisClient
     await redisClient.set("hi", "there");
     console.log("Value set successfully");
 
+    //EX로 만기일 결정
+    await redisClient.set("color", "there", "EX", 5); // =>5초
+
     // 'hi' 키의 값 가져오기
     let value = await redisClient.get("hi");
     console.log("Retrieved value:", value);

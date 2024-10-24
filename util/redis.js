@@ -7,6 +7,8 @@ redisClient
   .connect()
   .then(() => console.log("redis 연결 성공"))
   .catch(console.error);
+
+// redisClient.get = util.promisify(client.get);
 const set = async (key, value) => {
   if (typeof key !== "string") {
     key = String(key); // key가 문자열이 아니면 문자열로 변환
