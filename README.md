@@ -1,12 +1,18 @@
 # BookShop
-ERD
-DBdiagram.io
-[Untitled (2).pdf](https://github.com/user-attachments/files/17607033/Untitled.2.pdf)
 
-Api 설계
+DBdiagram.io ERD
+<img width="610" alt="image" src="https://github.com/user-attachments/assets/4588abdd-27fd-4ae4-a41a-412e8995ac56">
+
+POSTMAN
+<img width="200" alt="image" src="https://github.com/user-attachments/assets/7fa43a63-6af4-467e-84b6-f84957fe177c">
+
+Api 설계 문서
 https://www.notion.so/d679d5cf907a44c7a422a7bf26657b26?v=2a272b85a67244aeb98008fd7899b506&p=10ee05a8567880d294fffe7457c497b2&pm=s
 
-Table 설계
+인증 방식
+JWT의 ACCESS TOKEN, REFRESH TOKEN
+
+Table 설계, 관계 설정
 Table Users {
   id integer [primary key]
   email varchar
